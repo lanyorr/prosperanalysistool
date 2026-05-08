@@ -6,14 +6,14 @@
   <title>ProsperAnalysisTool</title>
 
   <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = 'https://tyfxnhopdiskzyxgrdjg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_jn4YmmSpL5iMjBTRuHpizQ_z6RhMC8B';
-    const supabase = window.supabase?.createClient
+    let supabaseClient = window.supabase?.createClient
       ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
       : null;
-    if (!supabase) {
+    if (!supabaseClient) {
       console.error('Supabase SDK failed to initialize.');
     }
   </script>
@@ -828,6 +828,15 @@
     btn.textContent = loading ? 'Please wait...' : (btnId === 'loginSubmitBtn' ? 'Login' : 'Create Account');
   }
 
+  function getSupabaseClient() {
+    if (supabaseClient?.auth) return supabaseClient;
+    if (window.supabase?.createClient) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return supabaseClient;
+    }
+    return null;
+  }
+
   // ── AUTH STATE ───────────────────────────────────────────────────
   function updateNavUI(user) {
     const loggedOut = document.getElementById('navLoggedOut');
@@ -843,12 +852,13 @@
     }
   }
 
-  if (supabase) {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+  const initialClient = getSupabaseClient();
+  if (initialClient?.auth) {
+    initialClient.auth.getSession().then(({ data: { session } }) => {
       updateNavUI(session?.user ?? null);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    initialClient.auth.onAuthStateChange((_event, session) => {
       updateNavUI(session?.user ?? null);
     });
   } else {
@@ -858,14 +868,15 @@
   // ── LOGIN ────────────────────────────────────────────────────────
   async function handleLogin(e) {
     e.preventDefault();
-    if (!supabase) {
+    const client = getSupabaseClient();
+    if (!client?.auth) {
       showToast('Supabase client failed to load. Refresh and try again.', 'error');
       return;
     }
     setLoading('loginSubmitBtn', true);
     const email    = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await client.auth.signInWithPassword({ email, password });
     setLoading('loginSubmitBtn', false);
     if (error) {
       showToast(error.message, 'error');
@@ -878,7 +889,8 @@
   // ── SIGN UP ──────────────────────────────────────────────────────
   async function handleSignup(e) {
     e.preventDefault();
-    if (!supabase) {
+    const client = getSupabaseClient();
+    if (!client?.auth || typeof client.auth.signUp !== 'function') {
       showToast('Supabase client failed to load. Refresh and try again.', 'error');
       return;
     }
@@ -898,7 +910,7 @@
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await client.auth.signUp({
         email, password,
         options: { data: { full_name: name } }
       });
@@ -913,11 +925,14 @@
       document.getElementById('signupForm').reset();
       document.getElementById('loginEmail').value = email;
       document.getElementById('loginPassword').value = '';
-      switchTab('login');
+      openAuth('login');
+      setTimeout(() => {
+        document.getElementById('loginPassword').focus();
+      }, 0);
 
       // If sign-up also created a session, sign out so the user can login explicitly.
       if (data?.session) {
-        await supabase.auth.signOut();
+        await client.auth.signOut();
       }
 
       showToast('Account created successfully. Please login. ✅', 'success');
@@ -929,11 +944,12 @@
 
   // ── LOGOUT ───────────────────────────────────────────────────────
   document.getElementById('navLogoutBtn').addEventListener('click', async () => {
-    if (!supabase) {
+    const client = getSupabaseClient();
+    if (!client?.auth) {
       showToast('Supabase client failed to load. Refresh and try again.', 'error');
       return;
     }
-    await supabase.auth.signOut();
+    await client.auth.signOut();
     showToast('Logged out. See you soon! 👋', 'success');
   });
 
@@ -943,17 +959,18 @@
 
   // ── PLAN SELECTION ───────────────────────────────────────────────
   async function selectPlan(plan) {
-    if (!supabase) {
+    const client = getSupabaseClient();
+    if (!client?.auth) {
       showToast('Supabase client failed to load. Refresh and try again.', 'error');
       return;
     }
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await client.auth.getSession();
     if (!session) {
       openAuth('signup');
       showToast('Create an account to subscribe to a plan.', 'error');
       return;
     }
-    const { error } = await supabase.from('subscriptions').upsert({
+    const { error } = await client.from('subscriptions').upsert({
       user_id: session.user.id,
       plan: plan,
       status: 'pending',
