@@ -6,11 +6,16 @@
   <title>ProsperAnalysisTool</title>
 
   <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
     const SUPABASE_URL = 'https://tyfxnhopdiskzyxgrdjg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_jn4YmmSpL5iMjBTRuHpizQ_z6RhMC8B';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = window.supabase?.createClient
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+    if (!supabase) {
+      console.error('Supabase SDK failed to initialize.');
+    }
   </script>
 
   <!-- Tailwind CSS -->
@@ -39,6 +44,7 @@
 
     .gradient-text{
       background:linear-gradient(to right,#00F5A0,#00D9F5);
+      background-clip:text;
       -webkit-background-clip:text;
       -webkit-text-fill-color:transparent;
     }
@@ -129,10 +135,10 @@
 
       <!-- Logged-out state -->
       <div id="navLoggedOut" class="flex gap-4">
-        <button id="navLoginBtn" class="border border-gray-700 px-5 py-2 rounded-xl hover:border-cyan-400 transition">
+        <button id="navLoginBtn" onclick="openAuth('login')" class="border border-gray-700 px-5 py-2 rounded-xl hover:border-cyan-400 transition">
           Login
         </button>
-        <button id="navSignupBtn" class="bg-cyan-400 text-black px-5 py-2 rounded-xl font-semibold hover:bg-cyan-300 transition">
+        <button id="navSignupBtn" onclick="openAuth('signup')" class="bg-cyan-400 text-black px-5 py-2 rounded-xl font-semibold hover:bg-cyan-300 transition">
           Start VIP
         </button>
       </div>
@@ -837,17 +843,25 @@
     }
   }
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    updateNavUI(session?.user ?? null);
-  });
+  if (supabase) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      updateNavUI(session?.user ?? null);
+    });
 
-  supabase.auth.onAuthStateChange((_event, session) => {
-    updateNavUI(session?.user ?? null);
-  });
+    supabase.auth.onAuthStateChange((_event, session) => {
+      updateNavUI(session?.user ?? null);
+    });
+  } else {
+    updateNavUI(null);
+  }
 
   // ── LOGIN ────────────────────────────────────────────────────────
   async function handleLogin(e) {
     e.preventDefault();
+    if (!supabase) {
+      showToast('Supabase client failed to load. Refresh and try again.', 'error');
+      return;
+    }
     setLoading('loginSubmitBtn', true);
     const email    = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
@@ -864,11 +878,21 @@
   // ── SIGN UP ──────────────────────────────────────────────────────
   async function handleSignup(e) {
     e.preventDefault();
+    if (!supabase) {
+      showToast('Supabase client failed to load. Refresh and try again.', 'error');
+      return;
+    }
     setLoading('signupSubmitBtn', true);
     const name     = document.getElementById('signupName').value.trim();
     const email    = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
-    const { error } = await supabase.auth.signUp({
+    if (password.length < 6) {
+      setLoading('signupSubmitBtn', false);
+      showToast('Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signUp({
       email, password,
       options: { data: { full_name: name } }
     });
@@ -876,13 +900,22 @@
     if (error) {
       showToast(error.message, 'error');
     } else {
-      showToast('Account created! Check your email to confirm. ✅', 'success');
+      if (data?.session) {
+        showToast('Account created and logged in! ✅', 'success');
+      } else {
+        showToast('Account created! Check your email to confirm. ✅', 'success');
+      }
+      document.getElementById('signupForm').reset();
       closeAuth();
     }
   }
 
   // ── LOGOUT ───────────────────────────────────────────────────────
   document.getElementById('navLogoutBtn').addEventListener('click', async () => {
+    if (!supabase) {
+      showToast('Supabase client failed to load. Refresh and try again.', 'error');
+      return;
+    }
     await supabase.auth.signOut();
     showToast('Logged out. See you soon! 👋', 'success');
   });
@@ -893,6 +926,10 @@
 
   // ── PLAN SELECTION ───────────────────────────────────────────────
   async function selectPlan(plan) {
+    if (!supabase) {
+      showToast('Supabase client failed to load. Refresh and try again.', 'error');
+      return;
+    }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       openAuth('signup');
