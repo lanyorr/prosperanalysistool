@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ProsperAnalysisTool</title>
 
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://tyfxnhopdiskzyxgrdjg.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_jn4YmmSpL5iMjBTRuHpizQ_z6RhMC8B';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -60,6 +68,40 @@
       background:rgba(255,255,255,0.06);
     }
 
+    /* AUTH MODAL */
+    #authModal{
+      display:none;
+      position:fixed;inset:0;z-index:999;
+      background:rgba(0,0,0,0.7);
+      backdrop-filter:blur(6px);
+      align-items:center;justify-content:center;
+    }
+    #authModal.open{ display:flex; }
+
+    .auth-box{
+      background:#08111f;
+      border:1px solid rgba(0,245,160,0.2);
+      border-radius:24px;
+      padding:40px;
+      width:100%;
+      max-width:420px;
+    }
+
+    .tab-btn.active{
+      color:#00F5A0;
+      border-bottom:2px solid #00F5A0;
+    }
+
+    #authToast{
+      display:none;
+      position:fixed;bottom:32px;left:50%;transform:translateX(-50%);
+      z-index:9999;padding:14px 28px;border-radius:14px;font-size:14px;
+      font-weight:600;
+    }
+    #authToast.show{ display:block; }
+    #authToast.success{ background:#00F5A0;color:#000; }
+    #authToast.error{ background:#f87171;color:#000; }
+
   </style>
 
 </head>
@@ -83,15 +125,25 @@
       <a href="#" class="hover:text-cyan-400">Contact</a>
     </nav>
 
-    <div class="flex gap-4">
+    <div class="flex gap-4 items-center">
 
-      <button class="border border-gray-700 px-5 py-2 rounded-xl hover:border-cyan-400 transition">
-        Login
-      </button>
+      <!-- Logged-out state -->
+      <div id="navLoggedOut" class="flex gap-4">
+        <button id="navLoginBtn" class="border border-gray-700 px-5 py-2 rounded-xl hover:border-cyan-400 transition">
+          Login
+        </button>
+        <button id="navSignupBtn" class="bg-cyan-400 text-black px-5 py-2 rounded-xl font-semibold hover:bg-cyan-300 transition">
+          Start VIP
+        </button>
+      </div>
 
-      <button class="bg-cyan-400 text-black px-5 py-2 rounded-xl font-semibold hover:bg-cyan-300 transition">
-        Start VIP
-      </button>
+      <!-- Logged-in state -->
+      <div id="navLoggedIn" class="hidden flex gap-4 items-center">
+        <span id="navUserEmail" class="text-cyan-400 text-sm"></span>
+        <button id="navLogoutBtn" class="border border-gray-700 px-5 py-2 rounded-xl hover:border-red-400 text-red-400 transition">
+          Logout
+        </button>
+      </div>
 
     </div>
 
@@ -563,7 +615,7 @@
           <li>✔ Email Alerts</li>
         </ul>
 
-        <button class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
+        <button onclick="selectPlan('Starter')" class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
           Get Started
         </button>
 
@@ -591,7 +643,7 @@
           <li>✔ VIP Community</li>
         </ul>
 
-        <button class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
+        <button onclick="selectPlan('VIP Pro')" class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
           Join VIP
         </button>
 
@@ -614,7 +666,7 @@
           <li>✔ Portfolio Reviews</li>
         </ul>
 
-        <button class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
+        <button onclick="selectPlan('Institutional')" class="w-full bg-cyan-400 text-black py-4 rounded-2xl font-bold hover:bg-cyan-300 transition">
           Upgrade Now
         </button>
 
@@ -642,7 +694,7 @@
         for AI-driven market insights and premium trading intelligence.
       </p>
 
-      <button class="bg-black text-white px-10 py-5 rounded-2xl font-bold hover:opacity-90 transition">
+      <button onclick="openAuth('signup')" class="bg-black text-white px-10 py-5 rounded-2xl font-bold hover:opacity-90 transition">
         Create Your Account
       </button>
 
@@ -656,6 +708,210 @@
 <footer class="border-t border-gray-800 py-10 text-center text-gray-500">
   © 2026 ProsperAnalysisTool. All Rights Reserved.
 </footer>
+
+<!-- AUTH MODAL -->
+<div id="authModal">
+  <div class="auth-box">
+
+    <!-- Close -->
+    <div class="flex justify-between items-center mb-8">
+      <h2 class="text-2xl font-bold">Welcome to <span class="gradient-text">ProsperAnalysisTool</span></h2>
+      <button onclick="closeAuth()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-8 border-b border-gray-700 mb-8">
+      <button id="tabLogin" onclick="switchTab('login')" class="tab-btn active pb-3 text-sm font-semibold">Login</button>
+      <button id="tabSignup" onclick="switchTab('signup')" class="tab-btn pb-3 text-sm font-semibold text-gray-400">Sign Up</button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-5">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Email</label>
+        <input id="loginEmail" type="email" required placeholder="you@email.com"
+          class="w-full bg-white/5 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400" />
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Password</label>
+        <input id="loginPassword" type="password" required placeholder="••••••••"
+          class="w-full bg-white/5 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400" />
+      </div>
+      <button type="submit" id="loginSubmitBtn"
+        class="w-full bg-cyan-400 text-black py-3 rounded-xl font-bold hover:bg-cyan-300 transition">
+        Login
+      </button>
+      <p class="text-center text-sm text-gray-500">No account? <button type="button" onclick="switchTab('signup')" class="text-cyan-400 hover:underline">Sign up</button></p>
+    </form>
+
+    <!-- Signup Form -->
+    <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-5 hidden">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Full Name</label>
+        <input id="signupName" type="text" required placeholder="John Doe"
+          class="w-full bg-white/5 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400" />
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Email</label>
+        <input id="signupEmail" type="email" required placeholder="you@email.com"
+          class="w-full bg-white/5 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400" />
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Password</label>
+        <input id="signupPassword" type="password" required placeholder="Min 6 characters"
+          class="w-full bg-white/5 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-400" />
+      </div>
+      <button type="submit" id="signupSubmitBtn"
+        class="w-full bg-cyan-400 text-black py-3 rounded-xl font-bold hover:bg-cyan-300 transition">
+        Create Account
+      </button>
+      <p class="text-center text-sm text-gray-500">Have an account? <button type="button" onclick="switchTab('login')" class="text-cyan-400 hover:underline">Login</button></p>
+    </form>
+
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="authToast"></div>
+
+<script>
+  // ── MODAL HELPERS ────────────────────────────────────────────────
+  function openAuth(tab = 'login') {
+    document.getElementById('authModal').classList.add('open');
+    switchTab(tab);
+  }
+  function closeAuth() {
+    document.getElementById('authModal').classList.remove('open');
+  }
+  document.getElementById('authModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAuth();
+  });
+
+  function switchTab(tab) {
+    const loginForm  = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    const tabLogin   = document.getElementById('tabLogin');
+    const tabSignup  = document.getElementById('tabSignup');
+    if (tab === 'login') {
+      loginForm.classList.remove('hidden');
+      signupForm.classList.add('hidden');
+      tabLogin.classList.add('active');
+      tabSignup.classList.remove('active');
+      tabLogin.classList.remove('text-gray-400');
+      tabSignup.classList.add('text-gray-400');
+    } else {
+      signupForm.classList.remove('hidden');
+      loginForm.classList.add('hidden');
+      tabSignup.classList.add('active');
+      tabLogin.classList.remove('active');
+      tabSignup.classList.remove('text-gray-400');
+      tabLogin.classList.add('text-gray-400');
+    }
+  }
+
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('authToast');
+    t.textContent = msg;
+    t.className = 'show ' + type;
+    setTimeout(() => { t.className = ''; }, 3500);
+  }
+
+  function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.disabled = loading;
+    btn.textContent = loading ? 'Please wait...' : (btnId === 'loginSubmitBtn' ? 'Login' : 'Create Account');
+  }
+
+  // ── AUTH STATE ───────────────────────────────────────────────────
+  function updateNavUI(user) {
+    const loggedOut = document.getElementById('navLoggedOut');
+    const loggedIn  = document.getElementById('navLoggedIn');
+    const emailEl   = document.getElementById('navUserEmail');
+    if (user) {
+      loggedOut.classList.add('hidden');
+      loggedIn.classList.remove('hidden');
+      emailEl.textContent = user.email;
+    } else {
+      loggedOut.classList.remove('hidden');
+      loggedIn.classList.add('hidden');
+    }
+  }
+
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    updateNavUI(session?.user ?? null);
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    updateNavUI(session?.user ?? null);
+  });
+
+  // ── LOGIN ────────────────────────────────────────────────────────
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoading('loginSubmitBtn', true);
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading('loginSubmitBtn', false);
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      showToast('Logged in successfully! 🎉', 'success');
+      closeAuth();
+    }
+  }
+
+  // ── SIGN UP ──────────────────────────────────────────────────────
+  async function handleSignup(e) {
+    e.preventDefault();
+    setLoading('signupSubmitBtn', true);
+    const name     = document.getElementById('signupName').value.trim();
+    const email    = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const { error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { full_name: name } }
+    });
+    setLoading('signupSubmitBtn', false);
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      showToast('Account created! Check your email to confirm. ✅', 'success');
+      closeAuth();
+    }
+  }
+
+  // ── LOGOUT ───────────────────────────────────────────────────────
+  document.getElementById('navLogoutBtn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    showToast('Logged out. See you soon! 👋', 'success');
+  });
+
+  // ── NAV BUTTONS ──────────────────────────────────────────────────
+  document.getElementById('navLoginBtn').addEventListener('click',  () => openAuth('login'));
+  document.getElementById('navSignupBtn').addEventListener('click', () => openAuth('signup'));
+
+  // ── PLAN SELECTION ───────────────────────────────────────────────
+  async function selectPlan(plan) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      openAuth('signup');
+      showToast('Create an account to subscribe to a plan.', 'error');
+      return;
+    }
+    const { error } = await supabase.from('subscriptions').upsert({
+      user_id: session.user.id,
+      plan: plan,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (error) {
+      showToast('Could not save plan: ' + error.message, 'error');
+    } else {
+      showToast('Plan "' + plan + '" selected! Our team will activate it shortly. 🚀', 'success');
+    }
+  }
+</script>
 
 </body>
 </html>
