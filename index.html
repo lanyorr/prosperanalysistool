@@ -886,27 +886,44 @@
     const name     = document.getElementById('signupName').value.trim();
     const email    = document.getElementById('signupEmail').value.trim();
     const password = document.getElementById('signupPassword').value;
+    if (!name) {
+      setLoading('signupSubmitBtn', false);
+      showToast('Please enter your full name.', 'error');
+      return;
+    }
     if (password.length < 6) {
       setLoading('signupSubmitBtn', false);
       showToast('Password must be at least 6 characters.', 'error');
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { full_name: name } }
-    });
-    setLoading('signupSubmitBtn', false);
-    if (error) {
-      showToast(error.message, 'error');
-    } else {
-      if (data?.session) {
-        showToast('Account created and logged in! ✅', 'success');
-      } else {
-        showToast('Account created! Check your email to confirm. ✅', 'success');
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { full_name: name } }
+      });
+      setLoading('signupSubmitBtn', false);
+
+      if (error) {
+        showToast(error.message, 'error');
+        return;
       }
+
+      // Redirect user to login form after successful sign up.
       document.getElementById('signupForm').reset();
-      closeAuth();
+      document.getElementById('loginEmail').value = email;
+      document.getElementById('loginPassword').value = '';
+      switchTab('login');
+
+      // If sign-up also created a session, sign out so the user can login explicitly.
+      if (data?.session) {
+        await supabase.auth.signOut();
+      }
+
+      showToast('Account created successfully. Please login. ✅', 'success');
+    } catch (err) {
+      setLoading('signupSubmitBtn', false);
+      showToast(err?.message || 'Signup failed. Please try again.', 'error');
     }
   }
 
